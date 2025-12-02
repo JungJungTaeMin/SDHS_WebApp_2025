@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+sqlalchemy
+requests
+python-dotenv
+openai
+beautifulsoup4
+psycopg2-binary
+python-jose[cryptography]
+passlib[bcrypt]
+pydantic
+scikit-learn
+numpy
+sentence-transformers

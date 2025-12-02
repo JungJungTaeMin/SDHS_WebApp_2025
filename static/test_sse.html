@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 뉴스 테스트</title>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { border-bottom: 2px solid #333; padding-bottom: 10px; }
+        .card { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; }
+        .btn { padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px; }
+        .btn:hover { background: #0056b3; }
+        .log { background: #f4f4f4; padding: 10px; border-radius: 4px; margin-top: 10px; white-space: pre-wrap; font-family: monospace; max-height: 300px; overflow-y: auto; }
+        .debate-section { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>🗞️ AI 뉴스 & 토론 테스트</h1>
+
+    <div class="card">
+        <h3>1. 토픽 목록 조회</h3>
+        <button class="btn" onclick="fetchTopics()">토픽 가져오기</button>
+        <div id="topicList" style="margin-top: 10px;"></div>
+    </div>
+
+    <div class="card" id="detailCard" style="display:none;">
+        <h3>2. 토픽 상세 & 토론</h3>
+        <div id="topicDetail"></div>
+        
+        <div class="debate-section">
+            <h4>🤖 AI 실시간 토론</h4>
+            <button class="btn" onclick="startDebateSSE()">토론 생성/보기 (SSE)</button>
+            <div id="debateStatus" style="margin-top: 10px; font-weight: bold; color: #666;"></div>
+            <div id="debateLog" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentTopicId = null;
+        const API_BASE = 'http://127.0.0.1:8000';
+
+        async function fetchTopics() {
+            try {
+                const res = await fetch(`${API_BASE}/topics`);
+                const topics = await res.json();
+                
+                const html = topics.map(t => `
+                    <div style="padding: 10px; border-bottom: 1px solid #eee;">
+                        <strong>[ID: ${t.topic_id}]</strong> ${t.ai_neutral_headline || '제목 없음'} 
+                        <button class="btn" style="padding: 2px 8px; font-size: 12px;" onclick="viewTopic(${t.topic_id})">선택</button>
+                    </div>
+                `).join('');
+                document.getElementById('topicList').innerHTML = html;
+            } catch (e) {
+                alert('API 호출 실패: ' + e);
+            }
+        }
+
+        async function viewTopic(id) {
+            currentTopicId = id;
+            document.getElementById('detailCard').style.display = 'block';
+            document.getElementById('debateLog').textContent = '';
+            document.getElementById('debateStatus').textContent = '';
+            
+            try {
+                const res = await fetch(`${API_BASE}/topics/${id}`);
+                const data = await res.json();
+                document.getElementById('topicDetail').innerHTML = `
+                    <h4>${data.ai_neutral_headline}</h4>
+                    <p>${data.ai_core_summary}</p>
+                    <hr>
+                    <div><strong>대표 기사:</strong> ${data.article ? data.article.original_title : '없음'}</div>
+                `;
+            } catch (e) {
+                alert('상세 조회 실패: ' + e);
+            }
+        }
+
+        function startDebateSSE() {
+            if (!currentTopicId) return;
+            
+            const logDiv = document.getElementById('debateLog');
+            const statusDiv = document.getElementById('debateStatus');
+            logDiv.textContent = '연결 중...';
+            
+            // SSE 연결
+            const evtSource = new EventSource(`${API_BASE}/debate/${currentTopicId}/sse`);
+
+            evtSource.onopen = () => {
+                statusDiv.textContent = '🟢 연결됨';
+            };
+
+            evtSource.addEventListener("status", (e) => {
+                if (e.data === "generating") {
+                    statusDiv.textContent = '🟡 AI가 열심히 토론을 생성하고 있습니다... (약 10-20초 소요)';
+                    logDiv.textContent = '생성 중...';
+                }
+            });
+
+            evtSource.addEventListener("complete", (e) => {
+                statusDiv.textContent = '✅ 토론 생성 완료!';
+                const data = JSON.parse(e.data);
+                renderDebate(data);
+                evtSource.close();
+            });
+
+            evtSource.addEventListener("error", (e) => {
+                // 연결 종료 시 에러 이벤트가 발생할 수 있음 (정상 종료 포함)
+                if (evtSource.readyState === EventSource.CLOSED) {
+                    statusDiv.textContent = '🔴 연결 종료';
+                } else {
+                    statusDiv.textContent = '❌ 에러 발생: ' + e.data;
+                    evtSource.close();
+                }
+            });
+        }
+
+        function renderDebate(data) {
+            const logDiv = document.getElementById('debateLog');
+            let html = '';
+            
+            // 참가자 소개
+            html += `[사회자] 오늘의 토론 주제는 "${data.topic_headline}" 입니다.\n\n`;
+            
+            // 라운드별 발언
+            data.rounds.forEach(round => {
+                html += `=== Round ${round.round_number}: ${round.theme} ===\n`;
+                round.statements.forEach(stmt => {
+                    const debater = data.debaters[stmt.speaker];
+                    html += `[${debater.name}]: ${stmt.content}\n\n`;
+                });
+            });
+
+            // 결론
+            html += `=== 결론 ===\n${data.conclusion.summary}\n\n`;
+            html += `추천: ${data.conclusion.recommendation}`;
+            
+            logDiv.textContent = html;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+.env
+.git
+.gitignore
+venv/
+.idea/
+.vscode/
+news.db
+news.db-shm
+news.db-wal
