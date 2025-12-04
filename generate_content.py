@@ -4,7 +4,6 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from core.database import SessionLocal, Topic, Article
 
-# Load environment variables
 load_dotenv()
 
 PPLX_API_KEY = os.environ.get("PPLX_API_KEY")
@@ -28,7 +27,6 @@ def generate_ai_content():
             
         articles_text = ""
         for i, art in enumerate(articles):
-            # Truncation removed to provide full context
             articles_text += f"News{i+1}: {art.title}\n{art.body}\n\n"
             
         system_prompt = "You are a helpful AI news editor. You must analyze the news articles and output a JSON object."
