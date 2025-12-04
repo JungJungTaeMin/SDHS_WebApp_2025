@@ -4,7 +4,6 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from core.database import SessionLocal, Topic, Article, Short
 
-# Load environment variables
 load_dotenv()
 
 PPLX_API_KEY = os.environ.get("PPLX_API_KEY")
