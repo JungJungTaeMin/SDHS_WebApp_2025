@@ -4,10 +4,8 @@ from bs4 import BeautifulSoup
 from models import SessionLocal, Source, Article
 import os
 
-# [수정] AWS 서버 내부(Localhost)에서 실행되는 API ㅇㅇㅁㄴ
 API_URL = "http://127.0.0.1:8000/search"
 
-# [핵심] 카테고리별 검색 키워드 설정
 CATEGORY_KEYWORDS = {
     "politics": ["정치", "대통령", "국회", "여당", "야당", "총선"],
     "economy": ["경제", "주식", "삼성전자", "부동산", "금리", "환율"],
@@ -27,7 +25,7 @@ def get_details_from_html(url):
         response = requests.get(url, headers=headers, timeout=3)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # 1. 기자 이름 추출
+
         reporter_name = None
         reporter_tag = soup.select_one('.media_end_head_journalist_name') or \
                        soup.select_one('.byline_s') or \
@@ -35,7 +33,6 @@ def get_details_from_html(url):
         if reporter_tag:
             reporter_name = reporter_tag.get_text(strip=True).split(' ')[0]
 
-        # 2. 고화질 이미지 URL 추출
         image_url = None
         og_image = soup.select_one('meta[property="og:image"]')
         if og_image: 
@@ -56,7 +53,6 @@ def run_populate():
         
         for keyword in keywords:
             try:
-                # 1. API 검색 요청 (로컬호스트로 전송)
                 response = requests.get(API_URL, params={"query": keyword})
                 if response.status_code != 200:
                     print(f"    ! API 오류 ({keyword}): 상태코드 {response.status_code}")
@@ -69,19 +65,15 @@ def run_populate():
                 for item in items:
                     link = item['link']
                     
-                    # 중복 확인
                     exists = db.query(Article).filter(Article.url == link).first()
                     if exists: 
                         continue
                     
-                    # 상세 정보 긁어오기
                     real_reporter_name, hq_image_url = get_details_from_html(link)
                     
-                    # HTML 태그 정리
                     title = item['title'].replace("<b>", "").replace("</b>", "").replace("&quot;", "'")
                     description = item['description'].replace("<b>", "").replace("</b>", "")
                     
-                    # 언론사 확인 및 생성
                     source = db.query(Source).filter(Source.name == "네이버뉴스").first()
                     if not source:
                         source = Source(name="네이버뉴스", bias_label="unknown")
@@ -89,7 +81,6 @@ def run_populate():
                         db.commit()
                         db.refresh(source)
                     
-                    # 저장
                     article = Article(
                         title=title, 
                         url=link, 
@@ -103,7 +94,7 @@ def run_populate():
                     db.add(article)
                     saved_count_in_keyword += 1
                     
-                    time.sleep(0.1) # 차단 방지
+                    time.sleep(0.1) 
                 
                 db.commit()
                 if saved_count_in_keyword > 0:
